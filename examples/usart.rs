@@ -1,23 +1,15 @@
 #![no_main]
 #![no_std]
 
-
 extern crate panic_halt;
 
-
-use lpc8xx_hal::{
-    prelude::*,
-    Peripherals,
-    cortex_m_rt::entry,
-    usart::BaudRate,
-};
-
+use lpc8xx_hal::{cortex_m_rt::entry, prelude::*, usart::BaudRate, Peripherals};
 
 #[entry]
 fn main() -> ! {
     let p = Peripherals::take().unwrap();
 
-    let mut swm    = p.SWM.split();
+    let mut swm = p.SWM.split();
     let mut syscon = p.SYSCON.split();
 
     // Set baud rate to 115200 baud
@@ -52,28 +44,28 @@ fn main() -> ! {
     // Make PIO0_7 and PIO0_18 available to the switch matrix API, by changing
     // their state using `into_swm_pin`. This is required, because we're going
     // to use the switch matrix to assigne the USART0 functions to those pins.
-    let pio0_7  = swm.pins.pio0_7.into_swm_pin();
+    let pio0_7 = swm.pins.pio0_7.into_swm_pin();
     let pio0_18 = swm.pins.pio0_18.into_swm_pin();
 
     // Assign U0_RXD to PIO0_18 and U0_TXD to PIO0_7. On the LPCXpresso824-MAX
     // development board, those pins are bridged to the board's USB port. So by
     // using the pins, we can use them to communicate with a host PC, without
     // additional hardware.
-    let (u0_rxd, _) = swm.movable_functions.u0_rxd
+    let (u0_rxd, _) = swm
+        .movable_functions
+        .u0_rxd
         .assign(pio0_18, &mut swm.handle);
-    let (u0_txd, _) = swm.movable_functions.u0_txd
-        .assign(pio0_7,  &mut swm.handle);
+    let (u0_txd, _) = swm.movable_functions.u0_txd.assign(pio0_7, &mut swm.handle);
 
     // Enable USART0
-    let serial = p.USART0.enable(
-        &baud_rate,
-        &mut syscon.handle,
-        u0_rxd,
-        u0_txd,
-    );
+    let serial = p
+        .USART0
+        .enable(&baud_rate, &mut syscon.handle, u0_rxd, u0_txd);
 
     // Send a string via USART0, blocking until it has been sent
-    serial.tx().bwrite_all(b"Hello, world!\n")
+    serial
+        .tx()
+        .bwrite_all(b"Hello, world!\n")
         .expect("UART write shouldn't fail");
 
     // We're done. Let's do nothing until someone resets the microcontroller.

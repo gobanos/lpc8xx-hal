@@ -55,41 +55,20 @@
 //!
 //! [examples in the repository]: https://github.com/lpc-rs/lpc8xx-hal/tree/master/lpc82x-hal/examples
 
-
 use core::fmt;
 use core::ops::Deref;
 
 use embedded_hal::blocking::serial::write::Default as BlockingWriteDefault;
-use embedded_hal::serial::{
-    Read,
-    Write,
-};
-use nb::{
-    self,
-    block,
-};
+use embedded_hal::serial::{Read, Write};
+use nb::{self, block};
 use void::Void;
 
 use crate::{
-    dma,
-    init_state,
-    pac::{
-        self,
-        usart0::TXDAT,
-        Interrupt,
-        NVIC,
-    },
-    swm::{
-        self,
-        FunctionTrait,
-        PinTrait,
-    },
-    syscon::{
-        self,
-        UARTFRG,
-    },
+    dma, init_state,
+    pac::{self, usart0::TXDAT, Interrupt, NVIC},
+    swm::{self, FunctionTrait, PinTrait},
+    syscon::{self, UARTFRG},
 };
-
 
 /// Interface to a USART peripheral
 ///
@@ -101,20 +80,23 @@ use crate::{
 /// [`Peripherals`]: ../struct.Peripherals.html
 /// [module documentation]: index.html
 pub struct USART<UsartX, State = init_state::Enabled> {
-    usart : UsartX,
+    usart: UsartX,
     _state: State,
 }
 
 impl<UsartX> USART<UsartX, init_state::Disabled> {
     pub(crate) fn new(usart: UsartX) -> Self {
         USART {
-            usart : usart,
+            usart: usart,
             _state: init_state::Disabled,
         }
     }
 }
 
-impl<UsartX> USART<UsartX, init_state::Disabled> where UsartX: Peripheral {
+impl<UsartX> USART<UsartX, init_state::Disabled>
+where
+    UsartX: Peripheral,
+{
     /// Enable the USART
     ///
     /// This method is only available, if `USART` is in the [`Disabled`] state.
@@ -138,58 +120,75 @@ impl<UsartX> USART<UsartX, init_state::Disabled> where UsartX: Peripheral {
     /// [`Enabled`]: ../init_state/struct.Enabled.html
     /// [`BaudRate`]: struct.BaudRate.html
     /// [module documentation]: index.html
-    pub fn enable<Rx, Tx>(mut self,
+    pub fn enable<Rx, Tx>(
+        mut self,
         baud_rate: &BaudRate,
-        syscon   : &mut syscon::Handle,
-        _        : swm::Function<UsartX::Rx, swm::state::Assigned<Rx>>,
-        _        : swm::Function<UsartX::Tx, swm::state::Assigned<Tx>>,
-    )
-        -> USART<UsartX, init_state::Enabled>
-        where
-            Rx        : PinTrait,
-            Tx        : PinTrait,
-            UsartX::Rx: FunctionTrait<Rx>,
-            UsartX::Tx: FunctionTrait<Tx>,
+        syscon: &mut syscon::Handle,
+        _: swm::Function<UsartX::Rx, swm::state::Assigned<Rx>>,
+        _: swm::Function<UsartX::Tx, swm::state::Assigned<Tx>>,
+    ) -> USART<UsartX, init_state::Enabled>
+    where
+        Rx: PinTrait,
+        Tx: PinTrait,
+        UsartX::Rx: FunctionTrait<Rx>,
+        UsartX::Tx: FunctionTrait<Tx>,
     {
         syscon.enable_clock(&mut self.usart);
 
-        self.usart.brg.write(|w| unsafe { w.brgval().bits(baud_rate.brgval) });
+        self.usart
+            .brg
+            .write(|w| unsafe { w.brgval().bits(baud_rate.brgval) });
 
         // According to the user manual, section 13.6.1, we need to make sure
         // that the USART is not sending or receiving data before writing to
         // CFG, and that it is disabled. We statically know that it is disabled
         // at this point, so there isn't anything to do here to ensure it.
 
-        self.usart.cfg.modify(|_, w|
-            w
-                .enable().enabled()
-                .datalen().bit_8()
-                .paritysel().no_parity()
-                .stoplen().bit_1()
-                .ctsen().disabled()
-                .syncen().asynchronous_mode()
-                .loop_().normal()
-                .autoaddr().disabled()
-                .rxpol().standard()
-                .txpol().standard()
-        );
+        self.usart.cfg.modify(|_, w| {
+            w.enable()
+                .enabled()
+                .datalen()
+                .bit_8()
+                .paritysel()
+                .no_parity()
+                .stoplen()
+                .bit_1()
+                .ctsen()
+                .disabled()
+                .syncen()
+                .asynchronous_mode()
+                .loop_()
+                .normal()
+                .autoaddr()
+                .disabled()
+                .rxpol()
+                .standard()
+                .txpol()
+                .standard()
+        });
 
-        self.usart.ctl.modify(|_, w|
-            w
-                .txbrken().normal()
-                .addrdet().disabled()
-                .txdis().enabled()
-                .autobaud().disabled()
-        );
+        self.usart.ctl.modify(|_, w| {
+            w.txbrken()
+                .normal()
+                .addrdet()
+                .disabled()
+                .txdis()
+                .enabled()
+                .autobaud()
+                .disabled()
+        });
 
         USART {
-            usart : self.usart,
+            usart: self.usart,
             _state: init_state::Enabled(()),
         }
     }
 }
 
-impl<UsartX> USART<UsartX, init_state::Enabled> where UsartX: Peripheral {
+impl<UsartX> USART<UsartX, init_state::Enabled>
+where
+    UsartX: Peripheral,
+{
     /// Disable the USART
     ///
     /// This method is only available, if `USART` is in the [`Enabled`] state.
@@ -201,13 +200,11 @@ impl<UsartX> USART<UsartX, init_state::Enabled> where UsartX: Peripheral {
     ///
     /// [`Enabled`]: ../init_state/struct.Enabled.html
     /// [`Disabled`]: ../init_state/struct.Disabled.html
-    pub fn disable(mut self, syscon: &mut syscon::Handle)
-        -> USART<UsartX, init_state::Disabled>
-    {
+    pub fn disable(mut self, syscon: &mut syscon::Handle) -> USART<UsartX, init_state::Disabled> {
         syscon.disable_clock(&mut self.usart);
 
         USART {
-            usart : self.usart,
+            usart: self.usart,
             _state: init_state::Disabled,
         }
     }
@@ -251,11 +248,13 @@ impl<UsartX, State> USART<UsartX, State> {
     }
 }
 
-
 /// USART receiver
 pub struct Receiver<'usart, UsartX: 'usart>(&'usart USART<UsartX>);
 
-impl<'usart, UsartX> Receiver<'usart, UsartX> where UsartX: Peripheral {
+impl<'usart, UsartX> Receiver<'usart, UsartX>
+where
+    UsartX: Peripheral,
+{
     /// Enable the RXRDY interrupt
     ///
     /// The interrupt will not actually work unless the interrupts for this
@@ -264,21 +263,18 @@ impl<'usart, UsartX> Receiver<'usart, UsartX> where UsartX: Peripheral {
     ///
     /// [`enable_interrupts`]: #method.enable_interrupts
     pub fn enable_rxrdy_interrupt(&mut self) {
-        self.0.usart.intenset.write(|w|
-            w.rxrdyen().set_bit()
-       );
+        self.0.usart.intenset.write(|w| w.rxrdyen().set_bit());
     }
 
     /// Disable the RXRDY interrupt
     pub fn disable_rxrdy_interrupt(&mut self) {
-        self.0.usart.intenclr.write(|w|
-            w.rxrdyclr().set_bit()
-        );
+        self.0.usart.intenclr.write(|w| w.rxrdyclr().set_bit());
     }
 }
 
 impl<'usart, UsartX> Read<u8> for Receiver<'usart, UsartX>
-    where UsartX: Peripheral,
+where
+    UsartX: Peripheral,
 {
     type Error = Error;
 
@@ -311,18 +307,19 @@ impl<'usart, UsartX> Read<u8> for Receiver<'usart, UsartX>
             // configured UART to use only 8 bits, so we can safely cast to
             // `u8`.
             return Ok(rx_dat_stat.rxdat().bits() as u8);
-        }
-        else {
+        } else {
             return Err(nb::Error::WouldBlock);
         }
     }
 }
 
-
 /// USART transmitter
 pub struct Transmitter<'usart, UsartX: 'usart>(&'usart USART<UsartX>);
 
-impl<'usart, UsartX> Transmitter<'usart, UsartX> where UsartX: Peripheral {
+impl<'usart, UsartX> Transmitter<'usart, UsartX>
+where
+    UsartX: Peripheral,
+{
     /// Enable the TXRDY interrupt
     ///
     /// The interrupt will not actually work unless the interrupts for this
@@ -331,21 +328,18 @@ impl<'usart, UsartX> Transmitter<'usart, UsartX> where UsartX: Peripheral {
     ///
     /// [`enable_interrupts`]: #method.enable_interrupts
     pub fn enable_txrdy_interrupt(&mut self) {
-        self.0.usart.intenset.write(|w|
-            w.txrdyen().set_bit()
-        );
+        self.0.usart.intenset.write(|w| w.txrdyen().set_bit());
     }
 
     /// Disable the TXRDY interrupt
     pub fn disable_txrdy_interrupt(&mut self) {
-        self.0.usart.intenclr.write(|w|
-            w.txrdyclr().set_bit()
-        );
+        self.0.usart.intenclr.write(|w| w.txrdyclr().set_bit());
     }
 }
 
 impl<'usart, UsartX> Write<u8> for Transmitter<'usart, UsartX>
-    where UsartX: Peripheral,
+where
+    UsartX: Peripheral,
 {
     type Error = Void;
 
@@ -370,29 +364,29 @@ impl<'usart, UsartX> Write<u8> for Transmitter<'usart, UsartX>
     }
 }
 
-impl<'usart, UsartX> BlockingWriteDefault<u8> for Transmitter<'usart, UsartX>
-    where UsartX: Peripheral,
-{}
+impl<'usart, UsartX> BlockingWriteDefault<u8> for Transmitter<'usart, UsartX> where
+    UsartX: Peripheral
+{
+}
 
 impl<'usart, UsartX> fmt::Write for Transmitter<'usart, UsartX>
-    where
-        Self  : BlockingWriteDefault<u8>,
-        UsartX: Peripheral,
+where
+    Self: BlockingWriteDefault<u8>,
+    UsartX: Peripheral,
 {
     fn write_str(&mut self, s: &str) -> fmt::Result {
         use crate::prelude::*;
 
-        self.bwrite_all(s.as_bytes())
-            .map_err(|_| fmt::Error)?;
-        block!(self.flush())
-            .map_err(|_| fmt::Error)?;
+        self.bwrite_all(s.as_bytes()).map_err(|_| fmt::Error)?;
+        block!(self.flush()).map_err(|_| fmt::Error)?;
 
         Ok(())
     }
 }
 
 impl<'usart, UsartX> dma::Dest for Transmitter<'usart, UsartX>
-    where UsartX: Peripheral,
+where
+    UsartX: Peripheral,
 {
     type Error = Void;
 
@@ -405,16 +399,13 @@ impl<'usart, UsartX> dma::Dest for Transmitter<'usart, UsartX>
     }
 }
 
-
 /// Internal trait for USART peripherals
 ///
 /// This trait is an internal implementation detail and should neither be
 /// implemented nor used outside of LPC82x HAL. Any changes to this trait won't
 /// be considered breaking changes.
 pub trait Peripheral:
-    Deref<Target = pac::usart0::RegisterBlock>
-    + syscon::ClockControl
-    + syscon::ResetControl
+    Deref<Target = pac::usart0::RegisterBlock> + syscon::ClockControl + syscon::ResetControl
 {
     /// The interrupt that is triggered for this USART peripheral
     const INTERRUPT: Interrupt;
@@ -447,7 +438,6 @@ impl Peripheral for pac::USART2 {
     type Tx = swm::U2_TXD;
 }
 
-
 /// Represents a UART baud rate
 ///
 /// Can be passed to [`USART::enable`] to configure the baud rate for a USART
@@ -478,14 +468,13 @@ impl<'frg> BaudRate<'frg> {
     /// is divided by 2 before using it, `2` means it's divided by 3, and so on.
     ///
     /// Please refer to the user manual, section 13.3.1, for further details.
-    pub fn new(uartfrg : &'frg UARTFRG, brgval : u16) -> Self {
+    pub fn new(uartfrg: &'frg UARTFRG, brgval: u16) -> Self {
         Self {
             _uartfrg: uartfrg,
-            brgval  : brgval,
+            brgval: brgval,
         }
     }
 }
-
 
 /// A USART error
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

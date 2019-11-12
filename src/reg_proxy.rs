@@ -98,7 +98,6 @@ pub unsafe trait Reg {
     fn get() -> *const Self::Target;
 }
 
-
 macro_rules! reg {
     ($ty:ident, $target:ty, $peripheral:path, $field:ident) => {
         unsafe impl $crate::reg_proxy::Reg for $ty {
@@ -121,5 +120,5 @@ macro_rules! reg_cluster {
                 unsafe { &(*<$peripheral>::ptr()).$cluster.$field as *const _ }
             }
         }
-    }
+    };
 }

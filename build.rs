@@ -1,10 +1,6 @@
 use std::fs;
 
-use termion::{
-    color,
-    style,
-};
-
+use termion::{color, style};
 
 fn main() {
     let openocd_cfg = match (cfg!(feature = "82x"), cfg!(feature = "845")) {
@@ -22,6 +18,5 @@ fn main() {
         }
     };
 
-    fs::copy(openocd_cfg, "target/openocd.cfg")
-        .expect("Failed to copy OpenOCD configuration");
+    fs::copy(openocd_cfg, "target/openocd.cfg").expect("Failed to copy OpenOCD configuration");
 }
